@@ -2,6 +2,45 @@
 
 #include <algorithm>
 
+void finalize_alignment(
+    Alignment& result,
+    std::size_t i,
+    std::size_t j
+) {
+    result.begin_a = i;
+    result.begin_b = j;
+
+    std::reverse(result.aligned_a.begin(), result.aligned_a.end());
+    std::reverse(result.aligned_b.begin(), result.aligned_b.end());
+
+    char previous = '\0';
+    std::size_t count = 0;
+
+    for (std::size_t k = 0; k < result.aligned_a.size(); ++k) {
+        const char x = result.aligned_a[k];
+        const char y = result.aligned_b[k];
+        const char operation =
+            x == '-' ? 'D' :
+            y == '-' ? 'I' :
+            x == y ? '=' : 'X';
+
+        if (operation != previous && count > 0) {
+            result.cigar += std::to_string(count);
+            result.cigar += previous;
+            count = 0;
+        }
+
+        previous = operation;
+        ++count;
+    }
+
+    if (count > 0) {
+        result.cigar += std::to_string(count);
+        result.cigar += previous;
+    }
+
+}
+
 Alignment traceback_alignment(
     const std::string& a,
     const std::string& b,
@@ -70,37 +109,7 @@ Alignment traceback_alignment(
         }
     }
 
-    result.begin_a = i;
-    result.begin_b = j;
-
-    std::reverse(result.aligned_a.begin(), result.aligned_a.end());
-    std::reverse(result.aligned_b.begin(), result.aligned_b.end());
-
-    char previous = '\0';
-    std::size_t count = 0;
-
-    for (std::size_t k = 0; k < result.aligned_a.size(); ++k) {
-        const char x = result.aligned_a[k];
-        const char y = result.aligned_b[k];
-        const char operation =
-            x == '-' ? 'D' :
-            y == '-' ? 'I' :
-            x == y ? '=' : 'X';
-
-        if (operation != previous && count > 0) {
-            result.cigar += std::to_string(count);
-            result.cigar += previous;
-            count = 0;
-        }
-
-        previous = operation;
-        ++count;
-    }
-
-    if (count > 0) {
-        result.cigar += std::to_string(count);
-        result.cigar += previous;
-    }
+    finalize_alignment(result, i, j);
 
     return result;
 }

@@ -93,3 +93,17 @@ foreach(tile IN ITEMS 5 32)
         PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     )
 endforeach()
+
+target_sources(pcap PRIVATE src/checkpoint.cpp)
+
+foreach(rows IN ITEMS 1 3 32)
+    add_test(
+        NAME checkpoint_${rows}
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_SOURCE_DIR}/tests/test_affine.py checkpoint ${rows}
+    )
+    set_tests_properties(
+        checkpoint_${rows}
+        PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    )
+endforeach()

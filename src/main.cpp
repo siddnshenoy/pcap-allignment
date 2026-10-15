@@ -1,6 +1,9 @@
 #include "alignment.hpp"
 
+#include <algorithm>
+#include <chrono>
 #include <exception>
+#include <vector>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -19,7 +22,7 @@ int main(int argc, char* argv[]) {
         std::cerr
             << "Usage: " << argv[0] << " SEQUENCE1 SEQUENCE2 [options]\n"
             << "Options: --match N --mismatch N "
-            << "--gap-open N --gap-extend N --backend scalar|openmp|openmp-tiled|cuda|cuda-tiled --tile-size N\n";
+            << "--gap-open N --gap-extend N --backend scalar|openmp|openmp-tiled|cuda|cuda-tiled|checkpoint --tile-size N --checkpoint-rows N --repetitions N\n";
         return 1;
     }
 
@@ -38,6 +41,9 @@ int main(int argc, char* argv[]) {
         Scoring scoring;
         std::string backend = "scalar";
         int tile_size = 32;
+        int checkpoint_rows = 64;
+        int repetitions = 1;
+        bool show_timing = false;
 
         for (int k = 3; k < argc; k += 2) {
             const std::string option = argv[k];
@@ -51,9 +57,10 @@ int main(int argc, char* argv[]) {
                 backend = argv[k + 1];
                 if (backend != "scalar" && backend != "openmp" &&
                     backend != "openmp-tiled" && backend != "cuda" &&
-                    backend != "cuda-tiled") {
+                    backend != "cuda-tiled" &&
+                    backend != "checkpoint") {
                     throw std::invalid_argument(
-                        "Backend must be scalar, openmp, openmp-tiled, cuda, or cuda-tiled."
+                        "Backend must be scalar, openmp, openmp-tiled, cuda, cuda-tiled, or checkpoint."
                     );
                 }
                 continue;
@@ -61,7 +68,24 @@ int main(int argc, char* argv[]) {
 
             const int value = parse_integer(argv[k + 1]);
 
-            if (option == "--tile-size") {
+            if (option == "--repetitions") {
+                if (value < 1 || value > 100) {
+                    throw std::invalid_argument(
+                        "Repetitions must be between 1 and 100."
+                    );
+                }
+                repetitions = value;
+                show_timing = true;
+            }
+            else if (option == "--checkpoint-rows") {
+                if (value < 1 || value > 4096) {
+                    throw std::invalid_argument(
+                        "Checkpoint rows must be between 1 and 4096."
+                    );
+                }
+                checkpoint_rows = value;
+            }
+            else if (option == "--tile-size") {
                 if (value < 1 || value > 1024) {
                     throw std::invalid_argument(
                         "Tile size must be between 1 and 1024."
@@ -78,8 +102,12 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        const Alignment result =
-            backend == "cuda-tiled"
+        auto run_alignment = [&]() -> Alignment {
+            return backend == "checkpoint"
+            ? align_checkpoint(
+                a, b, scoring,
+                static_cast<std::size_t>(checkpoint_rows))
+            : backend == "cuda-tiled"
             ? align_cuda_tiled(
                 a, b, scoring, static_cast<std::size_t>(tile_size))
             : backend == "cuda"
@@ -90,6 +118,28 @@ int main(int argc, char* argv[]) {
             : backend == "openmp"
             ? align_openmp(a, b, scoring)
             : align_scalar(a, b, scoring);
+        };
+
+        Alignment result;
+        std::vector<double> times_ms;
+
+        if (show_timing) {
+            (void)run_alignment();  // Warmup.
+        }
+
+        for (int run = 0; run < repetitions; ++run) {
+            const auto start_time = std::chrono::steady_clock::now();
+            result = run_alignment();
+            const auto end_time = std::chrono::steady_clock::now();
+
+            if (show_timing) {
+                times_ms.push_back(
+                    std::chrono::duration<double, std::milli>(
+                        end_time - start_time
+                    ).count()
+                );
+            }
+        }
 
         std::cout
             << "Score: " << result.score << '\n'
@@ -100,6 +150,20 @@ int main(int argc, char* argv[]) {
             << ", " << result.end_a << ")\n"
             << "Range 2: [" << result.begin_b
             << ", " << result.end_b << ")\n";
+
+        if (show_timing) {
+            std::sort(times_ms.begin(), times_ms.end());
+            const std::size_t middle = times_ms.size() / 2;
+            const double median =
+                times_ms.size() % 2 == 0
+                ? (times_ms[middle - 1] + times_ms[middle]) / 2.0
+                : times_ms[middle];
+
+            std::cout
+                << "Median_ms: " << median << '\n'
+                << "Min_ms: " << times_ms.front() << '\n'
+                << "Max_ms: " << times_ms.back() << '\n';
+        }
 
         return 0;
     } catch (const std::exception& error) {
