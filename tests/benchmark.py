@@ -21,12 +21,11 @@ backends = [
     "openmp-tiled",
     "cuda",
     "cuda-tiled",
-    "checkpoint",
 ]
 
 columns = [
     "case", "length_a", "length_b", "backend",
-    "tile_size", "checkpoint_rows", "repetitions",
+    "tile_size", "repetitions",
     "score", "median_ms", "min_ms", "max_ms",
     "million_cells_per_second", "wall_total_ms",
 ]
@@ -52,7 +51,6 @@ def run_case(a, b, backend, repetitions):
         "--gap-open", "3",
         "--gap-extend", "1",
         "--tile-size", "32",
-        "--checkpoint-rows", "64",
         "--repetitions", str(repetitions),
     ]
     started = time.perf_counter()
@@ -76,7 +74,7 @@ with output_path.open("w", newline="") as file:
 
     for case_name, length_a, length_b in cases:
         a, b = make_sequences(length_a, length_b)
-        repetitions = 3 if max(length_a, length_b) >= 512 else 5
+        repetitions = 9
         reference = None
 
         for backend in backends:
@@ -113,7 +111,6 @@ with output_path.open("w", newline="") as file:
                 "length_b": length_b,
                 "backend": backend,
                 "tile_size": 32,
-                "checkpoint_rows": 64,
                 "repetitions": repetitions,
                 "score": fields["Score"],
                 "median_ms": median_ms,

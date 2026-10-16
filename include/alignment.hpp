@@ -61,9 +61,3 @@ Alignment align_cuda_tiled(
     std::size_t tile_size = 32
 );
 
-Alignment align_checkpoint(
-    const std::string& a,
-    const std::string& b,
-    const Scoring& scoring = Scoring{},
-    std::size_t interval = 64
-);

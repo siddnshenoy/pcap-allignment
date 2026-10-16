@@ -34,7 +34,6 @@ def check_alignment(a, b, scoring):
     command = [
         "./pcap", a, b, "--backend", BACKEND,
         "--tile-size", TILE_SIZE,
-        "--checkpoint-rows", TILE_SIZE,
         "--match", str(match),
         "--mismatch", str(mismatch),
         "--gap-open", str(opening),
@@ -43,14 +42,6 @@ def check_alignment(a, b, scoring):
     output = subprocess.run(
         command, capture_output=True, text=True, check=True
     ).stdout
-
-    if BACKEND == "checkpoint":
-        scalar_command = command.copy()
-        scalar_command[4] = "scalar"
-        scalar_output = subprocess.run(
-            scalar_command, capture_output=True, text=True, check=True
-        ).stdout
-        assert output == scalar_output, (a, b, scoring, output, scalar_output)
 
     fields = dict(line.split(": ", 1) for line in output.splitlines())
     score = int(fields["Score"])

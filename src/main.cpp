@@ -22,7 +22,7 @@ int main(int argc, char* argv[]) {
         std::cerr
             << "Usage: " << argv[0] << " SEQUENCE1 SEQUENCE2 [options]\n"
             << "Options: --match N --mismatch N "
-            << "--gap-open N --gap-extend N --backend scalar|openmp|openmp-tiled|cuda|cuda-tiled|checkpoint --tile-size N --checkpoint-rows N --repetitions N\n";
+            << "--gap-open N --gap-extend N --backend scalar|openmp|openmp-tiled|cuda|cuda-tiled --tile-size N --repetitions N\n";
         return 1;
     }
 
@@ -41,7 +41,6 @@ int main(int argc, char* argv[]) {
         Scoring scoring;
         std::string backend = "scalar";
         int tile_size = 32;
-        int checkpoint_rows = 64;
         int repetitions = 1;
         bool show_timing = false;
 
@@ -57,10 +56,9 @@ int main(int argc, char* argv[]) {
                 backend = argv[k + 1];
                 if (backend != "scalar" && backend != "openmp" &&
                     backend != "openmp-tiled" && backend != "cuda" &&
-                    backend != "cuda-tiled" &&
-                    backend != "checkpoint") {
+                    backend != "cuda-tiled") {
                     throw std::invalid_argument(
-                        "Backend must be scalar, openmp, openmp-tiled, cuda, cuda-tiled, or checkpoint."
+                        "Backend must be scalar, openmp, openmp-tiled, cuda, or cuda-tiled."
                     );
                 }
                 continue;
@@ -76,14 +74,6 @@ int main(int argc, char* argv[]) {
                 }
                 repetitions = value;
                 show_timing = true;
-            }
-            else if (option == "--checkpoint-rows") {
-                if (value < 1 || value > 4096) {
-                    throw std::invalid_argument(
-                        "Checkpoint rows must be between 1 and 4096."
-                    );
-                }
-                checkpoint_rows = value;
             }
             else if (option == "--tile-size") {
                 if (value < 1 || value > 1024) {
@@ -103,11 +93,7 @@ int main(int argc, char* argv[]) {
         }
 
         auto run_alignment = [&]() -> Alignment {
-            return backend == "checkpoint"
-            ? align_checkpoint(
-                a, b, scoring,
-                static_cast<std::size_t>(checkpoint_rows))
-            : backend == "cuda-tiled"
+            return backend == "cuda-tiled"
             ? align_cuda_tiled(
                 a, b, scoring, static_cast<std::size_t>(tile_size))
             : backend == "cuda"
